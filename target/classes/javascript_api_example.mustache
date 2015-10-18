@@ -1,0 +1,23 @@
+{{#operations}}
+
+{{#operation}}
+var client = require('swagger-client');
+
+var swagger = new client({
+  url: 'https://app.rakam.com/api/swagger.json',
+  authorizations : {
+    {{#authMethods}}
+    "{{name}}": new client.ApiKeyAuthorization("{{name}}", "myApiKey", "header");
+    {{/authMethods}}
+  },
+  success: function() {
+      swagger.pet.{{nickname}}({{#allParams}}{{paramName}}: my{{paramName}}{{#hasMore}}, {{/hasMore}}{{/allParams}}, {responseContentType: 'application/json'}, function(response) {
+          console.log(response);
+      });
+  }
+});
+
+
+{{/operation}}
+
+{{/operations}}

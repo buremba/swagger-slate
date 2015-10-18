@@ -1,0 +1,17 @@
+{{#operations}}
+
+{{#operation}}
+from {{package}} import ApiClient;
+from {{package}}.configuration import Configuration
+import {{package}} as client;
+
+apiClient = client.ApiClient(HOST)
+{{#authMethods}}
+apiClient.configuration.api_key['{{name}}'] = 'myApiKey'
+{{/authMethods}}
+
+api = client.{{classname}}();
+api.{{nickname}}({{#allParams}}{{paramName}}{{#hasMore}}, {{/hasMore}}{{/allParams}});
+{{/operation}}
+
+{{/operations}}

@@ -1,0 +1,11 @@
+{{#operations}}
+{{#operation}}
+import {{package}}.ApiClient;
+import {{package}}.{{classname}};
+
+ApiClient apiClient = new ApiClient();
+{{#authMethods}}apiClient.getAuthentication("{{name}}").setApiKey("myApiKey");{{/authMethods}}
+{{classname}} api = new {{classname}}();
+api.{{nickname}}({{#allParams}}{{paramName}}{{#hasMore}}, {{/hasMore}}{{/allParams}});
+{{/operation}}
+{{/operations}}
