@@ -5,12 +5,11 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import io.airlift.airline.Cli;
 import io.airlift.airline.Command;
+import io.airlift.airline.Help;
 import io.airlift.airline.Option;
 import io.github.robwin.markup.builder.markdown.MarkdownBuilder;
 import io.swagger.codegen.CodegenConstants;
 import io.swagger.codegen.config.CodegenConfigurator;
-import io.swagger.models.Swagger;
-import io.swagger.parser.Swagger20Parser;
 import org.apache.commons.lang3.tuple.Pair;
 import org.rakam.client.builder.document.SlateDocumentGenerator;
 
@@ -25,22 +24,14 @@ import java.util.Map;
 
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 
-public class Swagger2MarkupConverter {
-    private final Swagger swagger;
-
-    Swagger2MarkupConverter(Swagger swagger) {
-        this.swagger = swagger;
-    }
-
-    public static Swagger2MarkupConverter from(String address) throws IOException {
-        return new Swagger2MarkupConverter(new Swagger20Parser().read(address, null));
-    }
-
+public class SlateGenerator {
+    
     public static void main(String[] args) {
         Cli.CliBuilder<Runnable> builder = Cli.<Runnable>builder("swagger")
                 .withDescription("Swagger code generator CLI. More info on swagger.io")
                 .withCommands(
-                        Generate.class
+                        Generate.class,
+                        Help.class
                 );
 
         builder.build().parse(args).run();
