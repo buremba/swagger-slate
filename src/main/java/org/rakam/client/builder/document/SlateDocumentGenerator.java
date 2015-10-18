@@ -18,6 +18,7 @@ import io.swagger.models.License;
 import io.swagger.models.Model;
 import io.swagger.models.Operation;
 import io.swagger.models.Path;
+import io.swagger.models.RefModel;
 import io.swagger.models.Response;
 import io.swagger.models.Scheme;
 import io.swagger.models.Swagger;
@@ -38,9 +39,12 @@ import io.swagger.models.properties.RefProperty;
 import io.swagger.models.properties.StringProperty;
 import org.apache.commons.lang3.StringUtils;
 import org.rakam.client.utils.ParameterUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -55,6 +59,8 @@ import java.util.stream.Collectors;
 import static org.rakam.client.utils.PropertyUtils.getType;
 
 public class SlateDocumentGenerator {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SlateDocumentGenerator.class);
+
     private static final String TERMS_OF_SERVICE = "Terms of service: ";
     private static final String URI_SCHEME = "URI scheme";
     private static final String HOST = "Host: ";
@@ -78,7 +84,7 @@ public class SlateDocumentGenerator {
         markdownBuilder.textLine("title: API Reference");
         markdownBuilder.textLine("language_tabs:");
         markdownBuilder.textLine("  - shell");
-        configurators.stream().map(c -> c.getLang()).forEach(lang -> markdownBuilder.textLine("  - "+lang));
+        configurators.stream().map(c -> c.getLang()).forEach(lang -> markdownBuilder.textLine("  - " + lang));
 
         markdownBuilder.textLine("toc_footers:");
         markdownBuilder.textLine(" - <a href='#'>Sign Up for a Developer Key</a>");
@@ -98,35 +104,35 @@ public class SlateDocumentGenerator {
 
         markdownBuilder.documentTitle("Introduction");
 
-        markdownBuilder.listing("We have language bindings in "+
+        markdownBuilder.listing("We have language bindings in " +
                 configurators.stream().map(c -> c.getLang()).collect(Collectors.joining(", "))
-                +"! You can view code examples in the dark area to the right, and you can switch the programming language of the examples with the tabs in the top right.");
+                + "! You can view code examples in the dark area to the right, and you can switch the programming language of the examples with the tabs in the top right.");
 
-        if(info.getDescription() != null){
+        if (info.getDescription() != null) {
             markdownBuilder.textLine(info.getDescription());
             markdownBuilder.newLine();
         }
 
-        if(StringUtils.isNotBlank(info.getVersion())){
+        if (StringUtils.isNotBlank(info.getVersion())) {
             markdownBuilder.sectionTitleLevel2("Version");
             markdownBuilder.textLine("Version: " + info.getVersion());
             markdownBuilder.newLine();
         }
 
         Contact contact = info.getContact();
-        if(contact != null){
+        if (contact != null) {
             markdownBuilder.sectionTitleLevel1("Contact Information");
-            if(StringUtils.isNotBlank(contact.getName())){
+            if (StringUtils.isNotBlank(contact.getName())) {
                 markdownBuilder.textLine("Contact: " + contact.getName());
             }
-            if(StringUtils.isNotBlank(contact.getEmail())){
+            if (StringUtils.isNotBlank(contact.getEmail())) {
                 markdownBuilder.textLine("Email: " + contact.getEmail());
             }
             markdownBuilder.newLine();
         }
 
         License license = info.getLicense();
-        if(license != null && (StringUtils.isNotBlank(license.getName()) || StringUtils.isNotBlank(license.getUrl()))) {
+        if (license != null && (StringUtils.isNotBlank(license.getName()) || StringUtils.isNotBlank(license.getUrl()))) {
             markdownBuilder.sectionTitleLevel2("License");
             if (StringUtils.isNotBlank(license.getName())) {
                 markdownBuilder.textLine("License: " + license.getName()).newLine();
@@ -137,12 +143,12 @@ public class SlateDocumentGenerator {
             markdownBuilder.newLine();
         }
 
-        if(StringUtils.isNotBlank(info.getTermsOfService())){
+        if (StringUtils.isNotBlank(info.getTermsOfService())) {
             markdownBuilder.textLine(TERMS_OF_SERVICE + info.getTermsOfService());
             markdownBuilder.newLine();
         }
 
-        if(StringUtils.isNotBlank(swagger.getHost()) || StringUtils.isNotBlank(swagger.getBasePath())) {
+        if (StringUtils.isNotBlank(swagger.getHost()) || StringUtils.isNotBlank(swagger.getBasePath())) {
             markdownBuilder.sectionTitleLevel2(URI_SCHEME);
             if (StringUtils.isNotBlank(swagger.getHost())) {
                 markdownBuilder.textLine(HOST + swagger.getHost());
@@ -150,7 +156,7 @@ public class SlateDocumentGenerator {
             if (StringUtils.isNotBlank(swagger.getBasePath())) {
                 markdownBuilder.textLine(BASE_PATH + swagger.getBasePath());
             }
-            if (swagger.getSchemes()!=null && !swagger.getSchemes().isEmpty()) {
+            if (swagger.getSchemes() != null && !swagger.getSchemes().isEmpty()) {
                 List<String> schemes = new ArrayList();
                 for (Scheme scheme : swagger.getSchemes()) {
                     schemes.add(scheme.toString());
@@ -160,109 +166,125 @@ public class SlateDocumentGenerator {
             markdownBuilder.newLine();
         }
 
-        if(!swagger.getTags().isEmpty()) {
-            for(Tag tag : swagger.getTags()) {
+        if (!swagger.getTags().isEmpty()) {
+            for (Tag tag : swagger.getTags()) {
                 String name = tag.getName();
                 String description = tag.getDescription();
                 markdownBuilder.documentTitle(CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, name.replaceAll("-", " "))).newLine().textLine(description).newLine();
-                printTag(name);
+                processOperation(name);
             }
             markdownBuilder.newLine();
         }
     }
 
-    private void printTag(String path, String method, Operation operation) {
-        markdownBuilder.sectionTitleLevel1(operation.getSummary());
+    private void processOperation(String path, String method, Operation operation) {
+        try {
+            markdownBuilder.sectionTitleLevel1(operation.getSummary());
 
-        StringBuilder builder = new StringBuilder();
-        builder.append("curl ").append('"').append(swagger.getHost() == null ? "" : swagger.getHost()).append(path).append('"').append("\n");
-        if(operation.getSecurity() != null) {
-            for (Map<String, List<String>> map : operation.getSecurity()) {
-                for (Map.Entry<String, List<String>> entry : map.entrySet()) {
-                    builder.append("  -H \""+entry.getKey()+": my"+entry.getKey()+"\"\n");
+            StringBuilder builder = new StringBuilder();
+            builder.append("curl ").append('"').append(swagger.getHost() == null ? "" : swagger.getHost()).append(path).append('"').append("\n");
+            if (operation.getSecurity() != null) {
+                for (Map<String, List<String>> map : operation.getSecurity()) {
+                    for (Map.Entry<String, List<String>> entry : map.entrySet()) {
+                        builder.append("  -H \"" + entry.getKey() + ": my" + entry.getKey() + "\"\n");
+                    }
                 }
             }
-        }
-        builder.append("-X POST -d '"+toExampleJsonParameters(operation)+"'");
-        markdownBuilder.source(builder.toString(), "shell");
+            builder.append("-X POST -d '" + toExampleJsonParameters(operation) + "'");
+            markdownBuilder.source(builder.toString(), "shell");
 
 
-        for (Map.Entry<String, String> entry : templates.get(new OperationIdentifier(path, method)).entrySet()) {
-            markdownBuilder.source(entry.getValue(), entry.getKey());
-        }
-
-        // TODO: response object also have example property
-        Response response = operation.getResponses().get("200");
-        if(response != null) {
-            markdownBuilder.textLine("> The above command returns JSON structured like this:").newLine();
-
-            String example = response.getSchema().getExample();
-            if(example != null) {
-                markdownBuilder.source(example, "json");
-            } if(response.getSchema().getExample() != null) {
-                markdownBuilder.source(response.getSchema().getExample(), "json");
-            } else {
-                markdownBuilder.source("{\n"+getValue(response.getSchema())+"\n}", "json");
+            for (Map.Entry<String, String> entry : templates.get(new OperationIdentifier(path, method)).entrySet()) {
+                markdownBuilder.source(entry.getValue(), entry.getKey());
             }
-        }
 
-        markdownBuilder.sectionTitleLevel2("HTTP Request").textLine("`"+method + " " + path+"`");
+            // TODO: response object also have example property
+            Response response = operation.getResponses().get("200");
+            if (response != null) {
+                markdownBuilder.textLine("> The above command returns JSON structured like this:").newLine();
 
-        List<String> parameters = new ArrayList();
+                String example = response.getSchema().getExample();
+                if (example != null) {
+                    markdownBuilder.source(example, "json");
+                }
+                if (response.getSchema().getExample() != null) {
+                    markdownBuilder.source(response.getSchema().getExample(), "json");
+                } else {
+                    markdownBuilder.source("{\n" + getValue(response.getSchema()) + "\n}", "json");
+                }
+            }
 
-        if (!operation.getParameters().isEmpty()) {
-            // we do not support multiple parameter types within a operation.
-            Parameter parameter = operation.getParameters().get(0);
-            ParameterIn parameterIn = ParameterIn.valueOf(parameter.getIn().toUpperCase(Locale.ENGLISH));
-            parameters.add("Parameter|Required|Type|Description");
+            markdownBuilder.sectionTitleLevel2("HTTP Request").textLine("`" + method + " " + path + "`");
 
-            if(parameterIn == ParameterIn.BODY) {
+            List<String> parameters = new ArrayList();
 
-                markdownBuilder.sectionTitleLevel2("Body Parameters");
+            if (!operation.getParameters().isEmpty()) {
+                // we do not support multiple parameter types within a operation.
+                Parameter parameter = operation.getParameters().get(0);
+                ParameterIn parameterIn;
+                try {
+                    parameterIn = ParameterIn.valueOf(parameter.getIn().toUpperCase(Locale.ENGLISH));
+                } catch (IllegalArgumentException e) {
+                    throw new UnsupportedOperationException(String.format("Parameter type '%s' not supported yet.",
+                            parameter.getIn()));
+                }
+                parameters.add("Parameter|Required|Type|Description");
 
-                Model model = swagger.getDefinitions().get(parameter.getName());
-                parameters.addAll(model.getProperties().entrySet().stream()
-                        .map(entry -> entry.getKey() + "|" + entry.getValue().getRequired() + "|" + getType(entry.getValue(), definitions) + "|" + trimNullableText(entry.getValue().getDescription()))
-                        .collect(Collectors.toList()));
+                if (parameterIn == ParameterIn.BODY) {
 
-                markdownBuilder.tableWithHeaderRow(parameters);
-            } else {
+                    markdownBuilder.sectionTitleLevel2("Body Parameters");
 
-                Map<ParameterIn, List<Parameter>> collect = operation.getParameters().stream().filter(p -> p instanceof AbstractSerializableParameter)
-                        .collect(Collectors.groupingBy(a -> ParameterIn.valueOf(a.getIn().toUpperCase(Locale.ENGLISH))));
-
-                for (Map.Entry<ParameterIn, List<Parameter>> entry : collect.entrySet()) {
-                    markdownBuilder.sectionTitleLevel2(entry.getKey().getQuery()+" Parameters");
-
-                    entry.getValue().stream().map(p -> p.getName() + "|" + p.getRequired() +
-                                "|" + ParameterUtils.getType(p, definitions) + "|" + trimNullableText(p.getDescription())).forEach(parameters::add);
+                    Model schema = ((BodyParameter) parameter).getSchema();
+                    if (!(schema instanceof RefModel)) {
+                        throw new IllegalArgumentException("swagger-codegen doesn't support inline schema declaration for body parameter. See https://github.com/swagger-api/swagger-codegen/issues/354");
+                    }
+                    Model model = swagger.getDefinitions().get(((RefModel) schema).getSimpleRef());
+                    parameters.addAll(model.getProperties().entrySet().stream()
+                            .map(entry -> entry.getKey() + "|" + entry.getValue().getRequired() + "|" + getType(entry.getValue(), definitions) + "|" + trimNullableText(entry.getValue().getDescription()))
+                            .collect(Collectors.toList()));
 
                     markdownBuilder.tableWithHeaderRow(parameters);
+                } else {
+
+                    Map<ParameterIn, List<Parameter>> collect = operation.getParameters().stream().filter(p -> p instanceof AbstractSerializableParameter)
+                            .collect(Collectors.groupingBy(a -> ParameterIn.valueOf(a.getIn().toUpperCase(Locale.ENGLISH))));
+
+                    for (Map.Entry<ParameterIn, List<Parameter>> entry : collect.entrySet()) {
+                        markdownBuilder.sectionTitleLevel2(entry.getKey().getQuery() + " Parameters");
+
+                        entry.getValue().stream().map(p -> p.getName() + "|" + p.getRequired() +
+                                "|" + ParameterUtils.getType(p, definitions) + "|" + trimNullableText(p.getDescription())).forEach(parameters::add);
+
+                        markdownBuilder.tableWithHeaderRow(parameters);
+                    }
+
                 }
-
             }
-        }
 
-        String description = trimNullableText(operation.getDescription());
-        if(!description.isEmpty()) {
-            markdownBuilder.paragraph(description);
+            String description = trimNullableText(operation.getDescription());
+            if (!description.isEmpty()) {
+                markdownBuilder.paragraph(description);
+            }
+        } catch (Exception e) {
+            LOGGER.error(String.format("An error occurred while processing operation. %s %s. Skipping..",
+                    method.toUpperCase(Locale.ENGLISH), path), e);
         }
     }
 
     private String toExampleJsonParameters(Map<String, Property> properties) {
-        return "{" +properties.entrySet()
-                .stream().map(e -> "\""+e.getKey()+"\" : " + getValue(e.getValue()) + "\n")
+        return "{" + properties.entrySet()
+                .stream().map(e -> "\"" + e.getKey() + "\" : " + getValue(e.getValue()) + "\n")
                 .collect(Collectors.joining(", ")) + "}";
     }
 
     private String toExampleJsonParameters(Operation operation) {
-        if(operation.getParameters().size() == 1 && operation.getParameters().get(0).getIn().equals("body")) {
+        if (operation.getParameters().size() == 1 && operation.getParameters().get(0).getIn().equals("body")) {
             Model model = ((BodyParameter) operation.getParameters().get(0)).getSchema();
 
             Map<String, Property> properties;
-            if(model.getReference() != null) {
+            if (model.getReference() != null) {
                 String prefix = "#/definitions/";
-                if(model.getReference().startsWith(prefix)) {
+                if (model.getReference().startsWith(prefix)) {
                     properties = swagger.getDefinitions().get(model.getReference().substring(prefix.length())).getProperties();
                 } else {
                     throw new IllegalStateException();
@@ -270,8 +292,8 @@ public class SlateDocumentGenerator {
             } else {
                 properties = model.getProperties();
             }
-            return "{" +properties.entrySet()
-                    .stream().map(e -> "\""+e.getKey()+"\" : " + getValue(e.getValue()) + "\n")
+            return "{" + properties.entrySet()
+                    .stream().map(e -> "\"" + e.getKey() + "\" : " + getValue(e.getValue()) + "\n")
                     .collect(Collectors.joining(", ")) + "}";
         }
 
@@ -281,33 +303,26 @@ public class SlateDocumentGenerator {
     }
 
     private String getValue(Property value) {
-        if(value instanceof StringProperty) {
+        if (value instanceof StringProperty) {
             return "\"str\"";
-        }else
-        if(value instanceof IntegerProperty || value instanceof LongProperty) {
+        } else if (value instanceof IntegerProperty || value instanceof LongProperty) {
             return "0";
-        }else
-        if(value instanceof DoubleProperty) {
+        } else if (value instanceof DoubleProperty) {
             return "0.0";
-        }else
-        if(value instanceof DateProperty) {
+        } else if (value instanceof DateProperty) {
             return "\"2015-01-20\"";
-        }else
-        if(value instanceof BooleanProperty) {
+        } else if (value instanceof BooleanProperty) {
             return "false";
-        }else
-        if(value instanceof MapProperty) {
+        } else if (value instanceof MapProperty) {
             return "{\"prop\": value}";
-        }else
-        if(value instanceof RefProperty) {
+        } else if (value instanceof RefProperty) {
             Model model = swagger.getDefinitions().get(((RefProperty) value).getSimpleRef());
             return model.getProperties()
                     .entrySet()
-                    .stream().map(e -> "\""+e.getKey()+"\" : " + getValue(e.getValue()) + "")
+                    .stream().map(e -> "\"" + e.getKey() + "\" : " + getValue(e.getValue()) + "")
                     .collect(Collectors.joining(", "));
-        }else
-        if(value instanceof ArrayProperty) {
-            return "[\n\t"+getValue(((ArrayProperty) value).getItems())+"\n]";
+        } else if (value instanceof ArrayProperty) {
+            return "[\n\t" + getValue(((ArrayProperty) value).getItems()) + "\n]";
         } else {
             return value.getExample();
         }
@@ -329,14 +344,14 @@ public class SlateDocumentGenerator {
             case "map":
                 return "{\"prop\": value}";
             case "array":
-                return "[\n\t"+getValue(value.getItems())+"\n]";
+                return "[\n\t" + getValue(value.getItems()) + "\n]";
             default:
                 return "";
         }
     }
 
     private String trimNullableText(String text) {
-        if(text == null || text.equals("null")) {
+        if (text == null || text.equals("null")) {
             return "";
         }
         return text.trim();
@@ -370,7 +385,7 @@ public class SlateDocumentGenerator {
 
             languages.put(configurator.getLang(), new AbstractMap.SimpleImmutableEntry<>(clientOptInput.getConfig(), defaultGenerator));
 
-            if(swagger == null) {
+            if (swagger == null) {
                 swagger = clientOptInput.getSwagger();
             }
         }
@@ -394,7 +409,13 @@ public class SlateDocumentGenerator {
                             continue;
                         }
 
-                        String template = Resources.toString(this.getClass().getClassLoader().getResource(language+"_api_example.mustache"), StandardCharsets.UTF_8);
+                        String template;
+                        URL resource = this.getClass().getClassLoader().getResource(language + "_api_example.mustache");
+                        if (resource == null) {
+                            throw new IllegalArgumentException(String.format("Language %s is not supported at the moment.", language));
+                        }
+
+                        template = Resources.toString(resource, StandardCharsets.UTF_8);
 
                         Template tmpl = Mustache.compiler()
                                 .withLoader(name -> value.getValue().getTemplateReader(value.getKey().templateDir() + File.separator + name + ".mustache"))
@@ -449,28 +470,28 @@ public class SlateDocumentGenerator {
         }
     }
 
-    private void printTag(String tag) {
+    private void processOperation(String tag) {
 
         for (Map.Entry<String, Path> entry : swagger.getPaths().entrySet()) {
 
             Path value = entry.getValue();
             if (value.getGet() != null && value.getGet().getTags().contains(tag)) {
-                printTag(entry.getKey(), "GET", value.getGet());
+                processOperation(entry.getKey(), "GET", value.getGet());
             }
             if (value.getPut() != null && value.getPut().getTags().contains(tag)) {
-                printTag(entry.getKey(), "PUT", value.getGet());
+                processOperation(entry.getKey(), "PUT", value.getPut());
             }
             if (value.getPost() != null && value.getPost().getTags().contains(tag)) {
-                printTag(entry.getKey(), "POST", value.getPost());
+                processOperation(entry.getKey(), "POST", value.getPost());
             }
             if (value.getDelete() != null && value.getDelete().getTags().contains(tag)) {
-                printTag(entry.getKey(), "DELETE", value.getDelete());
+                processOperation(entry.getKey(), "DELETE", value.getDelete());
             }
             if (value.getPatch() != null && value.getPatch().getTags().contains(tag)) {
-                printTag(entry.getKey(), "PATH", value.getPatch());
+                processOperation(entry.getKey(), "PATH", value.getPatch());
             }
             if (value.getOptions() != null && value.getOptions().getTags().contains(tag)) {
-                printTag(entry.getKey(), "OPTIONS", value.getOptions());
+                processOperation(entry.getKey(), "OPTIONS", value.getOptions());
             }
         }
     }
