@@ -60,6 +60,11 @@ import static org.rakam.client.utils.PropertyUtils.getType;
 
 public class SlateDocumentGenerator {
     private static final Logger LOGGER = LoggerFactory.getLogger(SlateDocumentGenerator.class);
+    private static final List supportedLanguages = ImmutableList.builder()
+            .add("java")
+            .add("python")
+            .add("php")
+            .build();
 
     private static final String TERMS_OF_SERVICE = "Terms of service: ";
     private static final String URI_SCHEME = "URI scheme";
@@ -383,6 +388,10 @@ public class SlateDocumentGenerator {
             DefaultGenerator defaultGenerator = new DefaultGenerator();
             defaultGenerator.opts(clientOptInput);
 
+            if (!supportedLanguages.contains(configurator.getLang())) {
+                throw new IllegalArgumentException(String.format("Language %s is not supported at the moment.", configurator.getLang()));
+            }
+
             languages.put(configurator.getLang(), new AbstractMap.SimpleImmutableEntry<>(clientOptInput.getConfig(), defaultGenerator));
 
             if (swagger == null) {
@@ -410,10 +419,7 @@ public class SlateDocumentGenerator {
                         }
 
                         String template;
-                        URL resource = this.getClass().getClassLoader().getResource(language + "_api_example.mustache");
-                        if (resource == null) {
-                            throw new IllegalArgumentException(String.format("Language %s is not supported at the moment.", language));
-                        }
+                        URL resource = this.getClass().getClassLoader().getResource("templates/" + language + "_api_example.mustache");
 
                         template = Resources.toString(resource, StandardCharsets.UTF_8);
 
