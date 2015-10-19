@@ -5,7 +5,7 @@ import {{package}}.{{classname}};
 
 ApiClient apiClient = new ApiClient();
 {{#authMethods}}apiClient.getAuthentication("{{name}}").setApiKey("myApiKey");{{/authMethods}}
-{{classname}} api = new {{classname}}();
+{{classname}} api = new {{classname}}(apiClient);
 api.{{nickname}}({{#allParams}}{{paramName}}{{#hasMore}}, {{/hasMore}}{{/allParams}});
 {{/operation}}
 {{/operations}}

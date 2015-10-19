@@ -1,11 +1,10 @@
 {{#operations}}
 
 {{#operation}}
-from {{package}} import ApiClient;
-from {{package}}.configuration import Configuration
-import {{package}} as client;
+from ..api_client import ApiClient;
+from ..configuration import Configuration
 
-apiClient = client.ApiClient(HOST)
+apiClient = client.ApiClient("{{hostname}}")
 {{#authMethods}}
 apiClient.configuration.api_key['{{name}}'] = 'myApiKey'
 {{/authMethods}}

@@ -4,7 +4,7 @@
 {{#operation}}
 require_once('/path/to/{{package}}');
 
-$api_client = new Swagger\Client\ApiClient('https://app.rakam.com');
+$api_client = new Swagger\Client\ApiClient('{{hostname}}');
 
 {{#authMethods}}
 $api_client->getConfig().setApiKey("{{name}}", "myApiKey");
