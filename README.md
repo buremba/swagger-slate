@@ -6,6 +6,7 @@ Generates Slate documentation from your Swagger specification
 
 ###### Requirements
 - Java 8
+- Maven
 
 ```sh
 git clone https://github.com/buremba/swagger-slate.git
