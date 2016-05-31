@@ -1,6 +1,7 @@
 package org.rakam.client.builder.document;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -33,6 +34,7 @@ import io.swagger.models.parameters.Parameter;
 import io.swagger.models.properties.ArrayProperty;
 import io.swagger.models.properties.BooleanProperty;
 import io.swagger.models.properties.DateProperty;
+import io.swagger.models.properties.DateTimeProperty;
 import io.swagger.models.properties.DoubleProperty;
 import io.swagger.models.properties.IntegerProperty;
 import io.swagger.models.properties.LongProperty;
@@ -62,7 +64,8 @@ import java.util.stream.Collectors;
 
 import static org.rakam.client.utils.PropertyUtils.getType;
 
-public class SlateDocumentGenerator {
+public class SlateDocumentGenerator
+{
     private static final Logger LOGGER = LoggerFactory.getLogger(SlateDocumentGenerator.class);
     private static final List supportedLanguages = ImmutableList.builder()
             .add("java")
@@ -82,13 +85,16 @@ public class SlateDocumentGenerator {
 
     private Map<OperationIdentifier, Map<String, String>> templates;
 
-    public SlateDocumentGenerator(ImmutableList<CodegenConfigurator> configurators) {
+    public SlateDocumentGenerator(ImmutableList<CodegenConfigurator> configurators)
+    {
         this.configurators = configurators;
         markdownBuilder = new MarkdownBuilder();
         definitions = new HashSet<>();
     }
 
-    public MarkdownBuilder build() throws IOException {
+    public MarkdownBuilder build()
+            throws IOException
+    {
         markdownBuilder.textLine("---");
         markdownBuilder.textLine("title: API Reference");
         markdownBuilder.textLine("language_tabs:");
@@ -108,7 +114,8 @@ public class SlateDocumentGenerator {
         return markdownBuilder;
     }
 
-    private void buildSlateDocument() {
+    private void buildSlateDocument()
+    {
         Info info = swagger.getInfo();
 
         markdownBuilder.documentTitle("Introduction");
@@ -166,10 +173,7 @@ public class SlateDocumentGenerator {
                 markdownBuilder.textLine(BASE_PATH + swagger.getBasePath());
             }
             if (swagger.getSchemes() != null && !swagger.getSchemes().isEmpty()) {
-                List<String> schemes = new ArrayList();
-                for (Scheme scheme : swagger.getSchemes()) {
-                    schemes.add(scheme.toString());
-                }
+                List<String> schemes = swagger.getSchemes().stream().map(Scheme::toString).collect(Collectors.toList());
                 markdownBuilder.textLine(SCHEMES + StringUtils.join(schemes, ", "));
             }
             markdownBuilder.newLine();
@@ -186,7 +190,8 @@ public class SlateDocumentGenerator {
         }
     }
 
-    private void processOperation(String path, String method, Operation operation) {
+    private void processOperation(String path, String method, Operation operation)
+    {
         try {
             markdownBuilder.sectionTitleLevel1(operation.getSummary());
 
@@ -195,13 +200,12 @@ public class SlateDocumentGenerator {
             if (operation.getSecurity() != null) {
                 for (Map<String, List<String>> map : operation.getSecurity()) {
                     for (Map.Entry<String, List<String>> entry : map.entrySet()) {
-                        builder.append("  -H \"" + entry.getKey() + ": my" + entry.getKey() + "\"\n");
+                        builder.append("  -H \"" + entry.getKey() + ": my" + entry.getKey() + " ");
                     }
                 }
             }
-            builder.append("-X POST -d '" + toExampleJsonParameters(operation) + "'");
+            builder.append("-X POST -d @- << EOF \n" + toExampleJsonParameters(operation) + "\nEOF");
             markdownBuilder.source(builder.toString(), "shell");
-
 
             for (Map.Entry<String, String> entry : templates.get(new OperationIdentifier(path, method)).entrySet()) {
                 markdownBuilder.source(entry.getValue(), entry.getKey());
@@ -218,9 +222,13 @@ public class SlateDocumentGenerator {
                 }
                 if (response.getSchema().getExample() != null) {
                     markdownBuilder.source(response.getSchema().getExample(), "json");
-                } else {
+                }
+                else {
                     String value = getValue(response.getSchema());
-                    String prettyJson = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mapper.readValue(value, Object.class));
+                    String prettyJson = mapper.writerWithDefaultPrettyPrinter()
+                            .writeValueAsString(mapper.readValue(value, Object.class));
+
+                    getValue(response.getSchema());
 
                     markdownBuilder.source(prettyJson, "json");
                 }
@@ -236,7 +244,8 @@ public class SlateDocumentGenerator {
                 ParameterIn parameterIn;
                 try {
                     parameterIn = ParameterIn.valueOf(parameter.getIn().toUpperCase(Locale.ENGLISH));
-                } catch (IllegalArgumentException e) {
+                }
+                catch (IllegalArgumentException e) {
                     throw new UnsupportedOperationException(String.format("Parameter type '%s' not supported yet.",
                             parameter.getIn()));
                 }
@@ -252,10 +261,11 @@ public class SlateDocumentGenerator {
                     }
                     Model model = swagger.getDefinitions().get(((RefModel) schema).getSimpleRef());
                     Map<String, Property> properties;
-                    if(model instanceof ArrayModel) {
+                    if (model instanceof ArrayModel) {
                         Property items = ((ArrayModel) model).getItems();
                         properties = ImmutableMap.of("array", items);
-                    }else {
+                    }
+                    else {
                         properties = model.getProperties();
                     }
                     parameters.addAll(properties.entrySet().stream()
@@ -263,7 +273,8 @@ public class SlateDocumentGenerator {
                             .collect(Collectors.toList()));
 
                     markdownBuilder.tableWithHeaderRow(parameters);
-                } else {
+                }
+                else {
 
                     Map<ParameterIn, List<Parameter>> collect = operation.getParameters().stream().filter(p -> p instanceof AbstractSerializableParameter)
                             .collect(Collectors.groupingBy(a -> ParameterIn.valueOf(a.getIn().toUpperCase(Locale.ENGLISH))));
@@ -276,7 +287,6 @@ public class SlateDocumentGenerator {
 
                         markdownBuilder.tableWithHeaderRow(parameters);
                     }
-
                 }
             }
 
@@ -284,19 +294,22 @@ public class SlateDocumentGenerator {
             if (!description.isEmpty()) {
                 markdownBuilder.paragraph(description);
             }
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             LOGGER.error(String.format("An error occurred while processing operation. %s %s. Skipping..",
                     method.toUpperCase(Locale.ENGLISH), path), e);
         }
     }
 
-    private String toExampleJsonParameters(Map<String, Property> properties) {
+    private String toExampleJsonParameters(Map<String, Property> properties)
+    {
         return "{" + properties.entrySet()
                 .stream().map(e -> "\"" + e.getKey() + "\" : " + getValue(e.getValue()) + "\n")
                 .collect(Collectors.joining(", ")) + "}";
     }
 
-    private String toExampleJsonParameters(Operation operation) {
+    private String toExampleJsonParameters(Operation operation)
+    {
         if (operation.getParameters().size() == 1 && operation.getParameters().get(0).getIn().equals("body")) {
             Model model = ((BodyParameter) operation.getParameters().get(0)).getSchema();
 
@@ -305,62 +318,84 @@ public class SlateDocumentGenerator {
                 String prefix = "#/definitions/";
                 if (model.getReference().startsWith(prefix)) {
                     Model model1 = swagger.getDefinitions().get(model.getReference().substring(prefix.length()));
-                    if(model1 instanceof ArrayModel) {
-                        return "[" + getValue(((ArrayModel) model1).getItems()) + "]";
+                    if (model1 instanceof ArrayModel) {
+                        return prettyJson("[" + getValue(((ArrayModel) model1).getItems()) + "]");
                     }
                     properties = model1.getProperties();
-                } else {
+                }
+                else {
                     throw new IllegalStateException();
                 }
-            } else {
+            }
+            else {
                 properties = model.getProperties();
             }
-            return toExampleJsonParameters(properties);
+            return prettyJson(toExampleJsonParameters(properties));
         }
 
         String jsonString = "{" + operation.getParameters().stream()
                 .filter(e -> e instanceof FormParameter).map(e -> "\"" + e.getName() + "\" : " + getValue((AbstractSerializableParameter) e))
                 .collect(Collectors.joining(", ")) + "}";
 
+        return prettyJson(jsonString);
+    }
+
+    private static String prettyJson(String json) {
         try {
-            return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(mapper.readValue(jsonString, Object.class));
-        } catch (IOException e) {
+            return mapper.enable(SerializationFeature.INDENT_OUTPUT)
+                    .writerWithDefaultPrettyPrinter().writeValueAsString(mapper.readValue(json, Object.class));
+        }
+        catch (IOException e) {
             throw new IllegalStateException("Example generator couldn't generate a valid JSON");
         }
     }
 
-    private String getValue(Property value) {
-        if(value.getExample() != null && !value.getExample().isEmpty()) {
+    private String getValue(Property value)
+    {
+        if (value.getExample() != null && !value.getExample().isEmpty()) {
             return value.getExample();
         }
         if (value instanceof StringProperty) {
             return "\"str\"";
-        } else if (value instanceof IntegerProperty || value instanceof LongProperty) {
-            return "0";
-        } else if (value instanceof DoubleProperty) {
-            return "0.0";
-        } else if (value instanceof DateProperty) {
+        }
+        else if (value instanceof IntegerProperty || value instanceof LongProperty) {
+            return "1";
+        }
+        else if (value instanceof DoubleProperty) {
+            return "1.0";
+        }
+        else if (value instanceof DateProperty) {
             return "\"2015-01-20\"";
-        } else if (value instanceof BooleanProperty) {
-            return "false";
-        } else if (value instanceof MapProperty) {
+        }
+        else if (value instanceof BooleanProperty) {
+            return "true";
+        }
+        else if (value instanceof MapProperty) {
             return "{\"prop\": {}}";
-        } else if (value instanceof RefProperty) {
+        }
+        else if (value instanceof RefProperty) {
             Model model = swagger.getDefinitions().get(((RefProperty) value).getSimpleRef());
-            return "{" +model.getProperties()
+            return "{" + model.getProperties()
                     .entrySet()
                     .stream().map(e -> "\"" + e.getKey() + "\" : " + getValue(e.getValue()) + "")
                     .collect(Collectors.joining(", ")) + "}";
-        } else if (value instanceof ArrayProperty) {
+        }
+        else if (value instanceof ArrayProperty) {
             return "[\n\t" + getValue(((ArrayProperty) value).getItems()) + "\n]";
-        } else if(value instanceof ObjectProperty) {
+        }
+        else if (value instanceof ObjectProperty) {
             return "\"object\"";
-        } else {
-            return "";
+        }
+        else if (value instanceof DateTimeProperty) {
+            return "\"2016-03-03T10:15:30.00Z\"";
+        }
+        else {
+            throw new IllegalStateException();
         }
     }
 
-    private String getValue(AbstractSerializableParameter value) {
+    private String getValue(AbstractSerializableParameter value)
+    {
         switch (value.getType()) {
             case "date":
                 return "\"2015-01-20\"";
@@ -382,28 +417,34 @@ public class SlateDocumentGenerator {
         }
     }
 
-    private String trimNullableText(String text) {
+    private String trimNullableText(String text)
+    {
         if (text == null || text.equals("null")) {
             return "";
         }
         return text.trim();
     }
 
-    private enum ParameterIn {
+    private enum ParameterIn
+    {
         BODY("Body"), FORMDATA("Form"), QUERY("Query");
 
         private final String query;
 
-        ParameterIn(String query) {
+        ParameterIn(String query)
+        {
             this.query = query;
         }
 
-        public String getQuery() {
+        public String getQuery()
+        {
             return query;
         }
     }
 
-    private Map<OperationIdentifier, Map<String, String>> generateExampleUsages() throws IOException {
+    private Map<OperationIdentifier, Map<String, String>> generateExampleUsages()
+            throws IOException
+    {
         Map<OperationIdentifier, Map<String, String>> templates = Maps.newHashMap();
 
         Map<String, Map.Entry<CodegenConfig, DefaultGenerator>> languages = new HashMap<>();
@@ -459,43 +500,52 @@ public class SlateDocumentGenerator {
                         templates.computeIfAbsent(new OperationIdentifier(op.path, op.httpMethod), key -> Maps.newHashMap()).put(language, tmpl.execute(operation));
                     }
                 }
-
             }
         }
 
         return templates;
     }
 
-    public static class OperationIdentifier {
+    public static class OperationIdentifier
+    {
         public final String path;
         public final String httpMethod;
 
-        public OperationIdentifier(String path, String httpMethod) {
+        public OperationIdentifier(String path, String httpMethod)
+        {
             this.path = path;
             this.httpMethod = httpMethod;
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (!(o instanceof OperationIdentifier)) return false;
+        public boolean equals(Object o)
+        {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof OperationIdentifier)) {
+                return false;
+            }
 
             OperationIdentifier that = (OperationIdentifier) o;
 
-            if (!path.equals(that.path)) return false;
+            if (!path.equals(that.path)) {
+                return false;
+            }
             return httpMethod.equals(that.httpMethod);
-
         }
 
         @Override
-        public int hashCode() {
+        public int hashCode()
+        {
             int result = path.hashCode();
             result = 31 * result + httpMethod.hashCode();
             return result;
         }
 
         @Override
-        public String toString() {
+        public String toString()
+        {
             return "OperationIdentifier{" +
                     "path='" + path + '\'' +
                     ", httpMethod='" + httpMethod + '\'' +
@@ -503,7 +553,8 @@ public class SlateDocumentGenerator {
         }
     }
 
-    private void processOperation(String tag) {
+    private void processOperation(String tag)
+    {
 
         for (Map.Entry<String, Path> entry : swagger.getPaths().entrySet()) {
 
