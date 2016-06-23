@@ -23,6 +23,7 @@ import io.swagger.models.parameters.AbstractSerializableParameter;
 import io.swagger.models.parameters.BodyParameter;
 import io.swagger.models.parameters.Parameter;
 import io.swagger.models.parameters.RefParameter;
+import io.swagger.models.properties.Property;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 

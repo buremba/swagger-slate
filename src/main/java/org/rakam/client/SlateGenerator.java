@@ -43,7 +43,7 @@ public class SlateGenerator {
                 "the format of name=value,name=value")
         private String systemProperties;
 
-        @Option(name = {"-c", "--config"}, title = "configuration file", description = "Path to json configuration file. " +
+        @Option(name = {"-c", "--configs"}, title = "configuration file", description = "Path to json configuration file. " +
                 "File content should be in a json format {\"optionKey\":\"optionValue\", \"optionKey1\":\"optionValue1\"...} " +
                 "Supported options can be different for each language. Run config-help -l {lang} command for language specific config options.")
         private String configFile;
@@ -70,11 +70,22 @@ public class SlateGenerator {
         public void run() {
 
             ImmutableList.Builder<CodegenConfigurator> builder = ImmutableList.builder();
-            for (String lang : Splitter.on(",").trimResults().split(langs)) {
-                CodegenConfigurator configurator = CodegenConfigurator.fromFile(configFile);
+            List<String> langList = ImmutableList.copyOf(Splitter.on(",").trimResults().split(langs));
+            List<String> configFiles;
+            if(configFile != null) {
+                configFiles = ImmutableList.copyOf(Splitter.on(",").trimResults().split(configFile));
+            } else {
+                configFiles = ImmutableList.of();
+            }
+            for (int i = 0; i < langList.size(); i++) {
+                String lang = langList.get(i);
+                String config = configFiles.size() >= i ? configFiles.get(i) : null;
 
-                if (configurator == null) {
+                CodegenConfigurator configurator;
+                if(config == null) {
                     configurator = new CodegenConfigurator();
+                } else {
+                    configurator = CodegenConfigurator.fromFile(config);
                 }
 
                 if (isNotEmpty(spec)) {
