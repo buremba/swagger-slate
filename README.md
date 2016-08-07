@@ -18,7 +18,7 @@ mvn clean install -DskipTests
 ```sh
 java -jar target/client.slate-*-jar-with-dependencies.jar generate -l java,python,php -i src/main/resources/rakam-example-spec.json -o ./
 ```
-It will output `slate.md` file in current directory, you can copy it to `slate/source/index.md` and Slate will update the HTML files automatically.
+It will output `slate.md` file in current directory, you can copy it to `slate/source/index.html.md` and Slate will update the HTML files automatically.
 
 Currently, the supported languages are `php`, `python` `java`. `javascript` for [swagger-js](https://github.com/swagger-api/swagger-js) will be supported in first release.
 

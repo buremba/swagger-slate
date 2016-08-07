@@ -1,8 +1,10 @@
 package org.rakam.client.builder.document;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.google.common.base.CaseFormat;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -198,16 +200,16 @@ public class SlateDocumentGenerator
             markdownBuilder.sectionTitleLevel1(operation.getSummary());
 
             StringBuilder builder = new StringBuilder();
-            builder.append("curl ").append('"').append(swagger.getHost() == null ? "" : swagger.getHost()).append(path).append('"').append("\n");
+            builder.append("curl ").append('"').append(swagger.getHost() == null ? "" : swagger.getHost()).append(path).append('"');
             if (operation.getSecurity() != null) {
                 for (Map<String, List<String>> map : operation.getSecurity()) {
                     for (Map.Entry<String, List<String>> entry : map.entrySet()) {
-                        builder.append("  -H \"" + entry.getKey() + ": my" + entry.getKey() + " ");
+                        builder.append(" -H \"" + entry.getKey() + ": my" + entry.getKey() + '"');
                     }
                 }
             }
 
-            builder.append("-X "+method);
+            builder.append(" -X "+method);
             if(operation.getParameters().stream().anyMatch(p -> p instanceof FormParameter || p instanceof BodyParameter)) {
                 builder.append(" -d @- << EOF \n" + toExampleJsonParameters(operation) + "\nEOF");
             }
@@ -374,6 +376,15 @@ public class SlateDocumentGenerator
             return value.getExample().toString();
         }
         if (value instanceof StringProperty) {
+            List<String> anEnum = ((StringProperty) value).getEnum();
+            if (anEnum != null && !anEnum.isEmpty()) {
+                try {
+                    return mapper.writeValueAsString(anEnum.get(0));
+                }
+                catch (JsonProcessingException e) {
+                    throw Throwables.propagate(e);
+                }
+            }
             return "\"str\"";
         }
         else if (value instanceof IntegerProperty || value instanceof LongProperty) {
@@ -445,7 +456,7 @@ public class SlateDocumentGenerator
 
     private enum ParameterIn
     {
-        BODY("Body"), FORMDATA("Form"), QUERY("Query");
+        BODY("Body"), HEADER("Header"), FORMDATA("Form"), QUERY("Query");
 
         private final String query;
 
