@@ -17,34 +17,12 @@ import io.swagger.codegen.CodegenConfig;
 import io.swagger.codegen.CodegenOperation;
 import io.swagger.codegen.DefaultGenerator;
 import io.swagger.codegen.config.CodegenConfigurator;
-import io.swagger.models.ArrayModel;
-import io.swagger.models.Contact;
-import io.swagger.models.Info;
-import io.swagger.models.License;
-import io.swagger.models.Model;
-import io.swagger.models.Operation;
-import io.swagger.models.Path;
-import io.swagger.models.RefModel;
-import io.swagger.models.Response;
-import io.swagger.models.Scheme;
-import io.swagger.models.Swagger;
-import io.swagger.models.Tag;
+import io.swagger.models.*;
 import io.swagger.models.parameters.AbstractSerializableParameter;
 import io.swagger.models.parameters.BodyParameter;
 import io.swagger.models.parameters.FormParameter;
 import io.swagger.models.parameters.Parameter;
-import io.swagger.models.properties.ArrayProperty;
-import io.swagger.models.properties.BooleanProperty;
-import io.swagger.models.properties.DateProperty;
-import io.swagger.models.properties.DateTimeProperty;
-import io.swagger.models.properties.DoubleProperty;
-import io.swagger.models.properties.IntegerProperty;
-import io.swagger.models.properties.LongProperty;
-import io.swagger.models.properties.MapProperty;
-import io.swagger.models.properties.ObjectProperty;
-import io.swagger.models.properties.Property;
-import io.swagger.models.properties.RefProperty;
-import io.swagger.models.properties.StringProperty;
+import io.swagger.models.properties.*;
 import org.apache.commons.lang3.StringUtils;
 import org.rakam.client.utils.ParameterUtils;
 import org.rakam.client.utils.PropertyUtils;
@@ -55,14 +33,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.lang.String.format;
@@ -303,6 +274,7 @@ public class SlateDocumentGenerator
             responses.add(headerRow);
 
             String responseRow = operation.getResponses().values().stream()
+                    .filter(e -> e.getSchema() != null) // some responses can be null
                     .map(e -> PropertyUtils.getType(e.getSchema(), definitions))
                     .collect(Collectors.joining("|"));
             responses.add(responseRow);
@@ -370,7 +342,11 @@ public class SlateDocumentGenerator
         }
     }
 
-    private String getValue(Property value)
+    private String getValue(Property value) {
+        return getValue(value, null);
+    }
+
+    private String getValue(Property value, Property parent)
     {
         if (value.getExample() != null && value.getExample() != null) {
             return value.getExample().toString();
@@ -406,11 +382,16 @@ public class SlateDocumentGenerator
             Model model = swagger.getDefinitions().get(((RefProperty) value).getSimpleRef());
             return "{" + model.getProperties()
                     .entrySet()
-                    .stream().map(e -> "\"" + e.getKey() + "\" : " + getValue(e.getValue()) + "")
+                    .stream()
+                    .map(e -> "\"" + e.getKey() + "\" : " + getValue(e.getValue(), parent) + "")
                     .collect(Collectors.joining(", ")) + "}";
         }
         else if (value instanceof ArrayProperty) {
-            return "[\n\t" + getValue(((ArrayProperty) value).getItems()) + "\n]";
+            if (parent != null && parent.equals(value)) {
+                return "[]";
+            } else {
+                return "[\n\t" + getValue(((ArrayProperty) value).getItems(), value) + "\n]";
+            }
         }
         else if (value instanceof ObjectProperty) {
             return "\"object\"";
@@ -418,8 +399,11 @@ public class SlateDocumentGenerator
         else if (value instanceof DateTimeProperty) {
             return "\"2016-03-03T10:15:30.00Z\"";
         }
+        else if (value instanceof UUIDProperty) {
+            return "\"4f884c73-7d2d-4c70-9e16-9685bda4263a\"";
+        }
         else {
-            throw new IllegalStateException();
+            throw new IllegalStateException("Value " + value + " is not supported.");
         }
     }
 
@@ -456,7 +440,7 @@ public class SlateDocumentGenerator
 
     private enum ParameterIn
     {
-        BODY("Body"), HEADER("Header"), FORMDATA("Form"), QUERY("Query");
+        PATH("Path"), BODY("Body"), HEADER("Header"), FORMDATA("Form"), QUERY("Query");
 
         private final String query;
 
