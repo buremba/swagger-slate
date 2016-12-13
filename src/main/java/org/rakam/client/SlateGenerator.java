@@ -79,7 +79,7 @@ public class SlateGenerator {
             }
             for (int i = 0; i < langList.size(); i++) {
                 String lang = langList.get(i);
-                String config = configFiles.size() >= i ? configFiles.get(i) : null;
+                String config = configFiles.size() > i ? configFiles.get(i) : null;
 
                 CodegenConfigurator configurator;
                 if(config == null) {
